@@ -54,7 +54,9 @@ module WebsocketRails
       Fiber.new do
         redis_client = EM.reactor_running? ? redis : ruby_redis
         event.server_token = server_token
-        redis_client.publish "websocket_rails.events", event.serialize
+        redis_options = WebsocketRails.config.redis_options
+        redis_channel = redis_options.has_key?( :namespace ) ? "websocket_rails.#{redis_options[ :namespace ]}.events" : "websocket_rails.events"
+        redis_client.publish redis_channel, event.serialize
       end.resume
     end
 
@@ -68,8 +70,10 @@ module WebsocketRails
         register_server(@server_token)
 
         synchro = Fiber.new do
+          redis_options = WebsocketRails.config.redis_options
+          redis_channel = redis_options.has_key?( :namespace ) ? "websocket_rails.#{redis_options[ :namespace ]}.events" : "websocket_rails.events"
           fiber_redis = Redis.connect(WebsocketRails.config.redis_options)
-          fiber_redis.subscribe "websocket_rails.events" do |on|
+          fiber_redis.subscribe redis_channel do |on|
 
             on.message do |_, encoded_event|
               event = Event.new_from_json(encoded_event, nil)
